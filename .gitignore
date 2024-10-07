@@ -47,3 +47,6 @@ tests/18-coap-lwm2m/leshan-server-demo*.jar
 
 # Mac files
 *.DS_Store
+
+# VS code files
+*.vscode
