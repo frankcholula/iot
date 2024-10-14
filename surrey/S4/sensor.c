@@ -3,23 +3,32 @@
 #include "dev/sht11-sensor.h"
 #include <stdio.h> /* For printf() */
 
+static void print_float(const char *input, float number) {
+    int integer_part = (int)number;
+    int decimal_part = (int)((number - integer_part) * 1000); // Get the three decimal places
+    printf("%s Reading: %d.%03d\n", input, integer_part, decimal_part);
+}
+
 float getTemperature(void)
 {
-  int tempData;
+  float tempData;
 
   // NOTE: You only need to use one of the following
   // If you run the code in Cooja Simulator, please remove the second one
-  //tempData = sht11_sensor.value(SHT11_SENSOR_TEMP_SKYSIM); // For Cooja Sim
-  tempData = sht11_sensor.value(SHT11_SENSOR_TEMP); // For XM1000 mote
-
-  float temp = tempData; // you need to implement the transfer function here
+  tempData = sht11_sensor.value(SHT11_SENSOR_TEMP_SKYSIM); // For Cooja Sim
+//  tempData = sht11_sensor.value(SHT11_SENSOR_TEMP); // For XM   1000 mote
+  float d1 = -39.6;
+  float d2 = 0.04;
+  float temp = tempData * d2 + d1;
   return temp;
 }
 
 float getLight(void)
 {
-  int   lightData = light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC);
-  float light = lightData; // you need to implement the transfer function here
+  int lightData = light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC);  
+  float V_sensor = 1.5 * lightData /4096;
+  float I = V_sensor / 100000; 
+  float light = 0.625*1e6*I*1000; 
   return light;
 }
 
@@ -44,7 +53,8 @@ PROCESS_THREAD(sensor_reading_process, ev, data)
 
     float temp = getTemperature();
     float light_lx = getLight();
-
+    print_float("Temp", temp);
+    print_float("Light", light_lx);
     printf("%d\n", ++counter); // you should also print the temperature
                                // and light intensity here
 
