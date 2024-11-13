@@ -15,7 +15,7 @@ PROCESS_THREAD(power, ev, data)
   PROCESS_BEGIN(); 
 
   /* Start powertracing */ 
-  int n = 1; // 1 second reporting cycle 
+  int n =  1  ; // 1 second reporting cycle 
 
   powertrace_start(CLOCK_SECOND * n); 
   printf("Ticks per second: %u\n", RTIMER_SECOND); 
