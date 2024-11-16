@@ -226,7 +226,7 @@ PROCESS_THREAD(sensor_reading_process, ev, data)
 {
     static struct etimer timer;
     static int sample_counter = 0;
-    static int k = 12; // User-defined number of samples before calculation
+    static int k = 12; // number of samples before calculation
 
     PROCESS_BEGIN();
     etimer_set(&timer, CLOCK_CONF_SECOND / 2); // Two readings per second
