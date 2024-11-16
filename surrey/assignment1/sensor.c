@@ -59,7 +59,6 @@ static void add_sensor_data(float light)
     list_add(sensor_list, new_data);
 }
 
-/* Calculate average */
 static float calculate_avg()
 {
     struct sensor_data *item;
@@ -73,7 +72,6 @@ static float calculate_avg()
     return (count == 0) ? 0.0 : sum / count;
 }
 
-/* Calculate sum of squared differences */
 static float calculate_ssd(float avg)
 {
     struct sensor_data *item;
@@ -99,7 +97,7 @@ static float sqrt_approx(float ssd)
     }
 
     for (i = 0; i < 50; i++)
-    { // Babylonian method
+    {
         x = 0.5 * (x + ssd / x);
         difference = x * x - ssd;
         if (difference < 0)
