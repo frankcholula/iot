@@ -137,30 +137,30 @@ static float fabs(float value)
     return (value < 0) ? -value : value;
 }
 
-static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
+static float calculate_manhattan_dist(list_t vec_X, list_t vec_Y)
 {
-    struct sensor_data *light_item = list_head(light_list);
-    struct sensor_data *temp_item = list_head(temp_list);
+    struct sensor_data *x_item = list_head(vec_X);
+    struct sensor_data *y_item = list_head(vec_Y);
     float dist = 0.0;
 
-    while (light_item != NULL && temp_item != NULL)
+    while (x_item != NULL && y_item != NULL)
     {
-        dist += fabs(light_item->value - temp_item->value);
-        light_item = list_item_next(light_item);
-        temp_item = list_item_next(temp_item);
+        dist += fabs(x_item->value - y_item->value);
+        x_item = list_item_next(x_item);
+        y_item = list_item_next(y_item);
     }
     return dist;
 }
 
-static float calculate_correlation(list_t light_list, list_t temp_list)
+static float calculate_correlation(list_t vec_X, list_t vec_Y)
 {
-    struct sensor_data *light_item = list_head(light_list);
-    struct sensor_data *temp_item = list_head(temp_list);
+    struct sensor_data *x_item = list_head(vec_X);
+    struct sensor_data *y_item = list_head(vec_Y);
 
-    float avg_x = calculate_avg(light_list);
-    float avg_y = calculate_avg(temp_list);
-    float std_x = calculate_std(light_list);
-    float std_y = calculate_std(temp_list);
+    float avg_x = calculate_avg(vec_X);
+    float avg_y = calculate_avg(vec_Y);
+    float std_x = calculate_std(vec_X);
+    float std_y = calculate_std(vec_Y);
 
     if (std_x == 0 || std_y == 0)
     {
@@ -169,22 +169,31 @@ static float calculate_correlation(list_t light_list, list_t temp_list)
     }
 
     float numerator = 0.0;
-    while (light_item != NULL && temp_item != NULL)
+    while (x_item != NULL && y_item != NULL)
     {
-        float x = light_item->value;
-        float y = temp_item->value;
+        float x = x_item->value;
+        float y = y_item->value;
 
         numerator += (x - avg_x) * (y - avg_y);
 
-        light_item = list_item_next(light_item);
-        temp_item = list_item_next(temp_item);
+        x_item = list_item_next(x_item);
+        y_item = list_item_next(y_item);
     }
     return numerator / (std_x * std_y);
 }
 
-// TODO: Implement SFFT
+// TODO: Implement Short Time Fourier Transform
+static void perform_stft(list_t lst) 
+{
+
+}
+
+
+
 
 // TODO: Implement Spectral 
+
+
 static void aggregate_and_report()
 {
     struct sensor_data *light_item = list_head(light_list);
