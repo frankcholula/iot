@@ -5,11 +5,9 @@
 #include "lib/memb.h"
 #include <stdio.h> /* For printf() */
 
+#define LN2 0.69314718056
 #define BUFFER_SIZE 12
-#define LOW_ACTIVITY_THRESHOLD 1000
-#define HIGH_ACTIVITY_THRESHOLD 5000
-#define SAX_FRAGMENTS 4
-#define SAX_ALPHABET_SIZE 4
+#define PI 3.141592653589793
 
 /* Helper functions */
 static void print_float(float number)
@@ -37,18 +35,6 @@ float get_temp_sensor(void)
     return temp;
 }
 
-/* Use linked list for sensor data */
-struct sensor_data
-{
-    struct sensor_data *next;
-    float value;
-};
-
-LIST(light_list);
-LIST(temp_list);
-MEMB(light_mem, struct sensor_data, BUFFER_SIZE);
-MEMB(temp_mem, struct sensor_data, BUFFER_SIZE);
-
 static void add_sensor_data(float value, list_t lst, struct memb *mem)
 {
     struct sensor_data *new_data;
@@ -70,6 +56,12 @@ static void add_sensor_data(float value, list_t lst, struct memb *mem)
     list_add(lst, new_data);
 }
 
+/* math approximation functions */
+static float fabs(float value)
+{
+    return (value < 0) ? -value : value;
+}
+
 static float calculate_avg(list_t lst)
 {
     struct sensor_data *item;
@@ -81,6 +73,40 @@ static float calculate_avg(list_t lst)
         count++;
     }
     return (count == 0) ? 0.0 : sum / count;
+}
+
+float sine_approx(float x)
+{
+    float term = x; // First term
+    float result = term;
+    int sign = -1;
+    int n;
+
+    // Use 5 terms for approximation
+    for (n = 3; n <= 9; n += 2)
+    {
+        term = term * x * x / (n * (n - 1)); // Compute next term
+        result += sign * term;               // Add/subtract the term
+        sign = -sign;                        // Alternate sign
+    }
+    return result;
+}
+
+float cosine_approx(float x)
+{
+    float term = 1.0f; // First term
+    float result = term;
+    int sign = -1;
+    int n;
+
+    // Use 5 terms for approximation
+    for (n = 2; n <= 8; n += 2)
+    {
+        term = term * x * x / (n * (n - 1)); // Compute next term
+        result += sign * term;               // Add/subtract the term
+        sign = -sign;                        // Alternate sign
+    }
+    return result;
 }
 
 static float calculate_ssd(float avg, list_t lst)
@@ -95,7 +121,6 @@ static float calculate_ssd(float avg, list_t lst)
     return ssd;
 }
 
-/* Calculate standard deviation */
 static float sqrt_approx(float ssd)
 {
     float error = 0.001; // Error tolerance for Babylonian method
@@ -131,68 +156,343 @@ static float calculate_std(list_t lst)
     return sqrt_approx(ssd);
 }
 
-/* Advanced features */
-static float fabs(float value)
+float log_approx(float x)
 {
-    return (value < 0) ? -value : value;
+    if (x <= 0.0f)
+    {
+        // Logarithm is undefined for non-positive values
+        return -1e9; // Return a large negative value to indicate an error
+    }
+
+    float result = 0.0f;
+    int k = 0;
+
+    // Normalize x to the range (0.5, 1.0]
+    while (x > 1.0f)
+    {
+        x /= 2.0f;
+        k++;
+    }
+    while (x < 0.5f)
+    {
+        x *= 2.0f;
+        k--;
+    }
+
+    // Taylor series expansion for ln(1 + y) where y = x - 1
+    x = x - 1.0f; // Now x is in the range (0, 0.5)
+    float term = x;
+    float y = x;
+    int n;
+
+    for (n = 2; n <= 10; n++) // Use 10 terms for good approximation
+    {
+        result += term;
+        term *= -y; // Alternate sign
+        term *= x / n;
+    }
+
+    return result + k * LN2;
 }
 
-static float calculate_manhattan_dist(list_t vec_X, list_t vec_Y)
+/* Use linked list for sensor data */
+struct sensor_data
 {
-    struct sensor_data *x_item = list_head(vec_X);
-    struct sensor_data *y_item = list_head(vec_Y);
+    struct sensor_data *next;
+    float value;
+};
+
+LIST(light_list);
+LIST(temp_list);
+MEMB(light_mem, struct sensor_data, BUFFER_SIZE);
+MEMB(temp_mem, struct sensor_data, BUFFER_SIZE);
+
+/* Advanced features */
+static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
+{
+    struct sensor_data *light_item = list_head(light_list);
+    struct sensor_data *temp_item = list_head(temp_list);
     float dist = 0.0;
 
-    while (x_item != NULL && y_item != NULL)
+    while (light_item != NULL && temp_item != NULL)
     {
-        dist += fabs(x_item->value - y_item->value);
-        x_item = list_item_next(x_item);
-        y_item = list_item_next(y_item);
+        dist += fabs(light_item->value - temp_item->value);
+        light_item = list_item_next(light_item);
+        temp_item = list_item_next(temp_item);
     }
     return dist;
 }
 
-static float calculate_correlation(list_t vec_X, list_t vec_Y)
+static float calculate_correlation(list_t light_list, list_t temp_list)
 {
-    struct sensor_data *x_item = list_head(vec_X);
-    struct sensor_data *y_item = list_head(vec_Y);
+    struct sensor_data *light_item = list_head(light_list);
+    struct sensor_data *temp_item = list_head(temp_list);
 
-    float avg_x = calculate_avg(vec_X);
-    float avg_y = calculate_avg(vec_Y);
-    float std_x = calculate_std(vec_X);
-    float std_y = calculate_std(vec_Y);
+    float avg_x = calculate_avg(light_list);
+    float avg_y = calculate_avg(temp_list);
+    float std_x = calculate_std(light_list);
+    float std_y = calculate_std(temp_list);
 
     if (std_x == 0 || std_y == 0)
     {
-        printf("Correlation undefined due to zero standard deviation.\n");
+        // correlation is undefined if either std is zero
         return 0.0;
     }
 
     float numerator = 0.0;
-    while (x_item != NULL && y_item != NULL)
+    while (light_item != NULL && temp_item != NULL)
     {
-        float x = x_item->value;
-        float y = y_item->value;
+        float x = light_item->value;
+        float y = temp_item->value;
 
         numerator += (x - avg_x) * (y - avg_y);
 
-        x_item = list_item_next(x_item);
-        y_item = list_item_next(y_item);
+        light_item = list_item_next(light_item);
+        temp_item = list_item_next(temp_item);
     }
     return numerator / (std_x * std_y);
 }
 
-// TODO: Implement Short Time Fourier Transform
-static void perform_stft(list_t lst) 
+typedef struct
 {
+    float real;
+    float imag;
+} complex_t;
 
+// helper functions
+float list_get(list_t lst, int index)
+{
+    struct sensor_data *element = (struct sensor_data *)list_head(lst);
+    int curr_index = 0;
+    while (element != NULL && curr_index < index)
+    {
+        element = (struct sensor_data *)list_item_next(element);
+        curr_index++;
+    }
+    if (element == NULL)
+    {
+        printf("Index %d is out of bounds. \n", index);
+        return 0.0;
+    }
+    return element->value;
 }
 
+// define memory pool
+MEMB(chunk_pool, float, 4);
+MEMB(fft_result_pool, complex_t, 4);
 
+void fft(complex_t *data, int fft_size)
+{
+    int i, j, len;
 
+    // Bit-reversal permutation
+    for (i = 0, j = 0; i < fft_size; i++)
+    {
+        if (i < j)
+        {
+            // Swap data[i] and data[j]
+            complex_t temp = data[i];
+            data[i] = data[j];
+            data[j] = temp;
+        }
+        int m = fft_size / 2;
+        while (m >= 1 && j >= m)
+        {
+            j -= m;
+            m /= 2;
+        }
+        j += m;
+    }
 
-// TODO: Implement Spectral 
+    // Iterative FFT computation
+    for (len = 2; len <= fft_size; len *= 2)
+    {
+        float angle = -2.0f * PI / len;
+        complex_t wlen = {cosine_approx(angle), sine_approx(angle)};
 
+        for (i = 0; i < fft_size; i += len)
+        {
+            complex_t w = {1.0, 0.0};
+            for (j = 0; j < len / 2; j++)
+            {
+                complex_t u = data[i + j];
+                complex_t v = {
+                    w.real * data[i + j + len / 2].real - w.imag * data[i + j + len / 2].imag,
+                    w.real * data[i + j + len / 2].imag + w.imag * data[i + j + len / 2].real};
+
+                data[i + j].real = u.real + v.real;
+                data[i + j].imag = u.imag + v.imag;
+                data[i + j + len / 2].real = u.real - v.real;
+                data[i + j + len / 2].imag = u.imag - v.imag;
+
+                // Update twiddle factor
+                complex_t w_new = {
+                    w.real * wlen.real - w.imag * wlen.imag,
+                    w.real * wlen.imag + w.imag * wlen.real};
+                w = w_new;
+            }
+        }
+    }
+}
+
+// Helper function to print STFT results as a table
+void print_stft_results(int chunk_index, complex_t *data, int chunk_size)
+{
+    int j; // Declare variables at the beginning for C99 compatibility
+
+    printf("Chunk %-3d", chunk_index); // Use a fixed-width field for chunk index
+
+    for (j = 0; j < chunk_size; j++)
+    {
+        // Print real and imaginary parts in fixed-width format
+        print_float(data[j].real);
+        printf(" + ");
+        print_float(data[j].imag);
+        printf("i     ");
+    }
+    printf("\n");
+}
+
+static void perform_stft(list_t lst, int chunk_size, int hop_size)
+{
+    memb_init(&chunk_pool);
+    memb_init(&fft_result_pool);
+
+    int signal_length = list_length(lst);
+    int num_chunks = (signal_length - chunk_size) / hop_size + 1;
+    printf("signal length %d and %d chunks\n", signal_length, num_chunks);
+    int i, j;
+    for (i = 0; i < num_chunks; i++)
+    {
+        float *chunk = (float *)memb_alloc(&chunk_pool);
+        if (chunk == NULL)
+        {
+            printf("Chunk allocation failed\n");
+            return;
+        }
+
+        int start_index = i * hop_size;
+        //    printf("Start index: %d\n", start_index);
+        for (j = 0; j < chunk_size; j++)
+        {
+            int signal_index = start_index + j;
+            //      printf("Signal index: %d\n", signal_index);
+            if (signal_index < signal_length)
+            {
+                chunk[j] = list_get(lst, signal_index);
+            }
+            else
+            {
+                chunk[j] = 0.0f; // just in case, not needed in our case.
+            }
+        }
+        complex_t data[chunk_size];
+        for (j = 0; j < chunk_size; j++)
+        {
+            data[j].real = chunk[j];
+            data[j].imag = 0.0f;
+            /*--------DEBUGGING--------*/
+            // printf("CHUNK VALUE: \n");
+            // print_float(data[j].real);
+            // printf("\n");
+            // print_float(data[j].imag);
+            // printf("\n");
+            /*--------DEBUGGING--------*/
+        }
+        fft(data, chunk_size);
+
+        /*--------DEBUGGING--------*/
+        print_stft_results(i, data, chunk_size);
+        /*--------DEBUGGING--------*/
+
+        memb_free(&chunk_pool, chunk);
+    }
+}
+
+void compute_power_spectrum(complex_t *chunk, float *power_spectrum, int chunk_size)
+{
+    int k;
+    for (k = 0; k < chunk_size; k++)
+    {
+        power_spectrum[k] = chunk[k].real * chunk[k].real + chunk[k].imag * chunk[k].imag;
+    }
+}
+
+void compute_average_power_spectrum(float **power_spectra, float *avg_power_spectrum, int num_chunks, int chunk_size)
+{
+    int k, m;
+    for (k = 0; k < chunk_size; k++)
+    {
+        avg_power_spectrum[k] = 0.0f;
+        for (m = 0; m < num_chunks; m++)
+        {
+            avg_power_spectrum[k] += power_spectra[m][k];
+        }
+        avg_power_spectrum[k] /= num_chunks; // Average over the number of chunks
+    }
+}
+
+float compute_total_power(float *avg_power_spectrum, int chunk_size)
+{
+    float total_power = 0.0f;
+    int k;
+    for (k = 0; k < chunk_size; k++)
+    {
+        total_power += avg_power_spectrum[k];
+    }
+    return total_power;
+}
+
+void compute_pdf(float *avg_power_spectrum, float *pdf, float total_power, int chunk_size)
+{
+    int k;
+    for (k = 0; k < chunk_size; k++)
+    {
+        if (total_power > 0)
+        {
+            pdf[k] = avg_power_spectrum[k] / total_power;
+        }
+        else
+        {
+            pdf[k] = 0.0f; // Avoid division by zero
+        }
+    }
+}
+
+float compute_entropy(float *pdf, int chunk_size)
+{
+    float entropy = 0.0f;
+    int k;
+    for (k = 0; k < chunk_size; k++)
+    {
+        if (pdf[k] > 0)
+        {
+            entropy -= pdf[k] * log_approx(pdf[k]);
+        }
+    }
+    return entropy;
+}
+
+float compute_spectral_entropy(complex_t **stft_results, int num_chunks, int chunk_size)
+{
+    float power_spectra[num_chunks][chunk_size]; // Power spectra for all chunks
+    float avg_power_spectrum[chunk_size];        // Average power spectrum
+    float pdf[chunk_size];                       // Probability density function
+    float total_power;                           // Total average power
+    float entropy;                               // Spectral entropy
+    int m;
+
+    for (m = 0; m < num_chunks; m++)
+    {
+        compute_power_spectrum(stft_results[m], power_spectra[m], chunk_size);
+    }
+
+    compute_average_power_spectrum((float **)power_spectra, avg_power_spectrum, num_chunks, chunk_size);
+    total_power = compute_total_power(avg_power_spectrum, chunk_size);
+    compute_pdf(avg_power_spectrum, pdf, total_power, chunk_size);
+    entropy = compute_entropy(pdf, chunk_size);
+    return entropy;
+}
 
 static void aggregate_and_report()
 {
@@ -226,6 +526,15 @@ static void aggregate_and_report()
     printf("Correlation: ");
     print_float(calculate_correlation(light_list, temp_list));
     printf("\n");
+
+    printf("Performing STFT with ");
+    perform_stft(light_list, 4, 2);
+    printf("\n");
+
+    float entropy = compute_spectral_entropy(light_list, 4, 3);
+    printf("Spectral Entropy: ");
+    print_float(entropy);
+    printf("\n");
 }
 /*---------------------------------------------------------------------------*/
 PROCESS(sensor_reading_process, "Sensor reading process");
@@ -238,7 +547,7 @@ PROCESS_THREAD(sensor_reading_process, ev, data)
     static int k = 12; // number of samples before calculation
 
     PROCESS_BEGIN();
-    etimer_set(&timer, CLOCK_CONF_SECOND / 2); // Two readings per second
+    etimer_set(&timer, CLOCK_CONF_SECOND / 2); // two readings per second
 
     SENSORS_ACTIVATE(light_sensor);
     SENSORS_ACTIVATE(sht11_sensor);
