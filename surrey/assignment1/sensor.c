@@ -20,11 +20,11 @@ static void print_float(float number)
 
 float read_light_sensor(void)
 {
-    int lightData = light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC);
-    float V_sensor = 1.5 * lightData / 4096;
-    float I = V_sensor / 100000;
-    float light = 0.625 * 1e6 * I * 1000;
-    return light;
+    float V_sensor = 1.5 * light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC) / 4096;
+    // ^ ADC-12 uses 1.5V_REF
+    float I = V_sensor / 100000;             // xm1000 uses 100kohm resistor
+    float light_lx = 0.625 * 1e6 * I * 1000; // convert from current to light intensity
+    return light_lx;
 }
 
 /* Use linked list for sensor data */
