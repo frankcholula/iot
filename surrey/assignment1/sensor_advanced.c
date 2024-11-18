@@ -4,6 +4,7 @@
 #include "lib/list.h"
 #include "lib/memb.h"
 #include <stdio.h> /* For printf() */
+#include <math.h>
 
 #define LN2 0.69314718056
 #define BUFFER_SIZE 12
@@ -35,6 +36,18 @@ float get_temp_sensor(void)
     return temp;
 }
 
+/* Use linked list for sensor data */
+struct sensor_data
+{
+    struct sensor_data *next;
+    float value;
+};
+
+LIST(light_list);
+LIST(temp_list);
+MEMB(light_mem, struct sensor_data, BUFFER_SIZE);
+MEMB(temp_mem, struct sensor_data, BUFFER_SIZE);
+
 static void add_sensor_data(float value, list_t lst, struct memb *mem)
 {
     struct sensor_data *new_data;
@@ -56,12 +69,6 @@ static void add_sensor_data(float value, list_t lst, struct memb *mem)
     list_add(lst, new_data);
 }
 
-/* math approximation functions */
-static float fabs(float value)
-{
-    return (value < 0) ? -value : value;
-}
-
 static float calculate_avg(list_t lst)
 {
     struct sensor_data *item;
@@ -73,40 +80,6 @@ static float calculate_avg(list_t lst)
         count++;
     }
     return (count == 0) ? 0.0 : sum / count;
-}
-
-float sine_approx(float x)
-{
-    float term = x; // First term
-    float result = term;
-    int sign = -1;
-    int n;
-
-    // Use 5 terms for approximation
-    for (n = 3; n <= 9; n += 2)
-    {
-        term = term * x * x / (n * (n - 1)); // Compute next term
-        result += sign * term;               // Add/subtract the term
-        sign = -sign;                        // Alternate sign
-    }
-    return result;
-}
-
-float cosine_approx(float x)
-{
-    float term = 1.0f; // First term
-    float result = term;
-    int sign = -1;
-    int n;
-
-    // Use 5 terms for approximation
-    for (n = 2; n <= 8; n += 2)
-    {
-        term = term * x * x / (n * (n - 1)); // Compute next term
-        result += sign * term;               // Add/subtract the term
-        sign = -sign;                        // Alternate sign
-    }
-    return result;
 }
 
 static float calculate_ssd(float avg, list_t lst)
@@ -121,6 +94,7 @@ static float calculate_ssd(float avg, list_t lst)
     return ssd;
 }
 
+/* Calculate standard deviation */
 static float sqrt_approx(float ssd)
 {
     float error = 0.001; // Error tolerance for Babylonian method
@@ -156,71 +130,21 @@ static float calculate_std(list_t lst)
     return sqrt_approx(ssd);
 }
 
-float log_approx(float x)
-{
-    if (x <= 0.0f)
-    {
-        // Logarithm is undefined for non-positive values
-        return -1e9; // Return a large negative value to indicate an error
-    }
 
-    float result = 0.0f;
-    int k = 0;
-
-    // Normalize x to the range (0.5, 1.0]
-    while (x > 1.0f)
-    {
-        x /= 2.0f;
-        k++;
-    }
-    while (x < 0.5f)
-    {
-        x *= 2.0f;
-        k--;
-    }
-
-    // Taylor series expansion for ln(1 + y) where y = x - 1
-    x = x - 1.0f; // Now x is in the range (0, 0.5)
-    float term = x;
-    float y = x;
-    int n;
-
-    for (n = 2; n <= 10; n++) // Use 10 terms for good approximation
-    {
-        result += term;
-        term *= -y; // Alternate sign
-        term *= x / n;
-    }
-
-    return result + k * LN2;
-}
-
-/* Use linked list for sensor data */
-struct sensor_data
-{
-    struct sensor_data *next;
-    float value;
-};
-
-LIST(light_list);
-LIST(temp_list);
-MEMB(light_mem, struct sensor_data, BUFFER_SIZE);
-MEMB(temp_mem, struct sensor_data, BUFFER_SIZE);
-
-/* Advanced features */
 static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
 {
     struct sensor_data *light_item = list_head(light_list);
     struct sensor_data *temp_item = list_head(temp_list);
-    float dist = 0.0;
-
+    double dist = 0.0;  // Use double for accumulation
+    
     while (light_item != NULL && temp_item != NULL)
     {
-        dist += fabs(light_item->value - temp_item->value);
+        double diff = (double)light_item->value - (double)temp_item->value;
+        dist += (diff < 0) ? -diff : diff;  // Inline abs for double
         light_item = list_item_next(light_item);
         temp_item = list_item_next(temp_item);
     }
-    return dist;
+    return (float)dist;
 }
 
 static float calculate_correlation(list_t light_list, list_t temp_list)
@@ -253,6 +177,7 @@ static float calculate_correlation(list_t light_list, list_t temp_list)
     return numerator / (std_x * std_y);
 }
 
+// TODO: Implement SFFT
 typedef struct
 {
     float real;
@@ -281,6 +206,39 @@ float list_get(list_t lst, int index)
 MEMB(chunk_pool, float, 4);
 MEMB(fft_result_pool, complex_t, 4);
 
+float sine_approx(float x)
+{
+    float term = x; // First term
+    float result = term;
+    int sign = -1;
+    int n;
+
+    // Use 5 terms for approximation
+    for (n = 3; n <= 9; n += 2)
+    {
+        term = term * x * x / (n * (n - 1)); // Compute next term
+        result += sign * term;               // Add/subtract the term
+        sign = -sign;                        // Alternate sign
+    }
+    return result;
+}
+
+float cosine_approx(float x)
+{
+    float term = 1.0f; // First term
+    float result = term;
+    int sign = -1;
+    int n;
+
+    // Use 5 terms for approximation
+    for (n = 2; n <= 8; n += 2)
+    {
+        term = term * x * x / (n * (n - 1)); // Compute next term
+        result += sign * term;               // Add/subtract the term
+        sign = -sign;                        // Alternate sign
+    }
+    return result;
+}
 void fft(complex_t *data, int fft_size)
 {
     int i, j, len;
@@ -409,88 +367,79 @@ static void perform_stft(list_t lst, int chunk_size, int hop_size)
     }
 }
 
-void compute_power_spectrum(complex_t *chunk, float *power_spectrum, int chunk_size)
-{
+// TODO: Implement Spectral Entropy
+void compute_power_spectrum(complex_t *chunk, float *power_spectrum, int chunk_size) {
     int k;
-    for (k = 0; k < chunk_size; k++)
-    {
-        power_spectrum[k] = chunk[k].real * chunk[k].real + chunk[k].imag * chunk[k].imag;
+    for (k = 0; k < chunk_size; k++) {
+        // Compute power as magnitude squared
+        power_spectrum[k] = chunk[k].real * chunk[k].real + 
+                           chunk[k].imag * chunk[k].imag;
     }
 }
 
-void compute_average_power_spectrum(float **power_spectra, float *avg_power_spectrum, int num_chunks, int chunk_size)
-{
-    int k, m;
-    for (k = 0; k < chunk_size; k++)
-    {
-        avg_power_spectrum[k] = 0.0f;
-        for (m = 0; m < num_chunks; m++)
-        {
-            avg_power_spectrum[k] += power_spectra[m][k];
+static float compute_spectral_entropy(list_t lst, int chunk_size, int hop_size) {
+    int signal_length = list_length(lst);
+    int num_chunks = (signal_length - chunk_size) / hop_size + 1;
+    
+    if (num_chunks <= 0) return 0.0f;
+    
+    // Allocate memory for power spectrum calculations
+    float power_spectrum[chunk_size];
+    float avg_power_spectrum[chunk_size];
+    float pdf[chunk_size];
+    
+    // Initialize average power spectrum
+    int i;
+    for (i = 0; i < chunk_size; i++) {
+        avg_power_spectrum[i] = 0.0f;
+    }
+    
+    // Process each chunk
+    for (i = 0; i < num_chunks; i++) {
+        // Prepare chunk data
+        complex_t chunk_data[chunk_size];
+        int j;
+        for (j = 0; j < chunk_size; j++) {
+            int signal_index = i * hop_size + j;
+            if (signal_index < signal_length) {
+                chunk_data[j].real = list_get(lst, signal_index);
+                chunk_data[j].imag = 0.0f;
+            } else {
+                chunk_data[j].real = 0.0f;
+                chunk_data[j].imag = 0.0f;
+            }
         }
-        avg_power_spectrum[k] /= num_chunks; // Average over the number of chunks
+        
+        // Perform FFT on chunk
+        fft(chunk_data, chunk_size);
+        
+        // Compute power spectrum for this chunk
+        compute_power_spectrum(chunk_data, power_spectrum, chunk_size);
+        
+        // Add to average power spectrum
+        for (j = 0; j < chunk_size; j++) {
+            avg_power_spectrum[j] += power_spectrum[j];
+        }
     }
-}
-
-float compute_total_power(float *avg_power_spectrum, int chunk_size)
-{
+    
+    // Compute final average
     float total_power = 0.0f;
-    int k;
-    for (k = 0; k < chunk_size; k++)
-    {
-        total_power += avg_power_spectrum[k];
+    for (i = 0; i < chunk_size; i++) {
+        avg_power_spectrum[i] /= num_chunks;
+        total_power += avg_power_spectrum[i];
     }
-    return total_power;
-}
-
-void compute_pdf(float *avg_power_spectrum, float *pdf, float total_power, int chunk_size)
-{
-    int k;
-    for (k = 0; k < chunk_size; k++)
-    {
-        if (total_power > 0)
-        {
-            pdf[k] = avg_power_spectrum[k] / total_power;
-        }
-        else
-        {
-            pdf[k] = 0.0f; // Avoid division by zero
-        }
-    }
-}
-
-float compute_entropy(float *pdf, int chunk_size)
-{
+    
+    // Compute PDF and entropy
     float entropy = 0.0f;
-    int k;
-    for (k = 0; k < chunk_size; k++)
-    {
-        if (pdf[k] > 0)
-        {
-            entropy -= pdf[k] * log_approx(pdf[k]);
+    if (total_power > 0.0f) {
+        for (i = 0; i < chunk_size; i++) {
+            if (avg_power_spectrum[i] > 0.0f) {
+                pdf[i] = avg_power_spectrum[i] / total_power;
+                entropy -= pdf[i] * logf(pdf[i]);
+            }
         }
     }
-    return entropy;
-}
-
-float compute_spectral_entropy(complex_t **stft_results, int num_chunks, int chunk_size)
-{
-    float power_spectra[num_chunks][chunk_size]; // Power spectra for all chunks
-    float avg_power_spectrum[chunk_size];        // Average power spectrum
-    float pdf[chunk_size];                       // Probability density function
-    float total_power;                           // Total average power
-    float entropy;                               // Spectral entropy
-    int m;
-
-    for (m = 0; m < num_chunks; m++)
-    {
-        compute_power_spectrum(stft_results[m], power_spectra[m], chunk_size);
-    }
-
-    compute_average_power_spectrum((float **)power_spectra, avg_power_spectrum, num_chunks, chunk_size);
-    total_power = compute_total_power(avg_power_spectrum, chunk_size);
-    compute_pdf(avg_power_spectrum, pdf, total_power, chunk_size);
-    entropy = compute_entropy(pdf, chunk_size);
+    
     return entropy;
 }
 
@@ -531,9 +480,8 @@ static void aggregate_and_report()
     perform_stft(light_list, 4, 2);
     printf("\n");
 
-    float entropy = compute_spectral_entropy(light_list, 4, 3);
     printf("Spectral Entropy: ");
-    print_float(entropy);
+    print_float(compute_spectral_entropy(light_list,4,2));
     printf("\n");
 }
 /*---------------------------------------------------------------------------*/
