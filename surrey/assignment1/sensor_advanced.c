@@ -207,7 +207,6 @@ float list_get(list_t lst, int index)
 
 // define memory pool
 MEMB(chunk_pool, float, 4);
-MEMB(fft_result_pool, complex_t, 4);
 
 float sine_approx(float x)
 {
@@ -314,7 +313,6 @@ void print_stft_results(int chunk_index, complex_t *data, int chunk_size)
 static void perform_stft(list_t lst, int chunk_size, int hop_size)
 {
     memb_init(&chunk_pool);
-    memb_init(&fft_result_pool);
 
     int signal_length = list_length(lst);
     int num_chunks = (signal_length - chunk_size) / hop_size + 1;
