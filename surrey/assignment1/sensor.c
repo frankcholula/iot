@@ -1,3 +1,4 @@
+/*----------Basic Features----------*/
 #include "contiki.h"
 #include "dev/light-sensor.h"
 #include "lib/list.h"

@@ -1,3 +1,4 @@
+/*----------Advanced Features----------*/
 #include "contiki.h"
 #include "dev/light-sensor.h"
 #include "dev/sht11-sensor.h"
