@@ -134,20 +134,18 @@ static float calculate_std(list_t lst)
     return sqrt_approx(ssd);
 }
 
-static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
-{
+static float calculate_manhattan_dist(list_t light_list, list_t temp_list) {
     struct sensor_data *light_item = list_head(light_list);
     struct sensor_data *temp_item = list_head(temp_list);
-    double dist = 0.0; // Use double for accumulation
+    float dist = 0.0f;  // Use float with f suffix
 
-    while (light_item != NULL && temp_item != NULL)
-    {
-        double diff = (double)light_item->value - (double)temp_item->value;
-        dist += (diff < 0) ? -diff : diff; // Inline abs for double
+    while (light_item != NULL && temp_item != NULL) {
+        float diff = light_item->value - temp_item->value;
+        dist += (diff < 0) ? -diff : diff;  // Inline abs for float
         light_item = list_item_next(light_item);
         temp_item = list_item_next(temp_item);
     }
-    return (float)dist;
+    return dist;
 }
 
 static float calculate_correlation(list_t light_list, list_t temp_list)
