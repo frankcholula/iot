@@ -10,7 +10,7 @@
 #define LN2 0.69315f
 #define BUFFER_SIZE 12
 
-/* Helper functions */
+/* Helper functions for sensor reading and printing */
 static void print_float(float number)
 {
     int integer_part = (int)number;
@@ -73,31 +73,7 @@ static void add_sensor_data(float value, list_t lst, struct memb *mem)
     list_add(lst, new_data);
 }
 
-static float calculate_avg(list_t lst)
-{
-    struct sensor_data *item;
-    float sum = 0.0;
-    int count = 0;
-    for (item = list_head(lst); item != NULL; item = list_item_next(item))
-    {
-        sum += item->value;
-        count++;
-    }
-    return (count == 0) ? 0.0 : sum / count;
-}
-
-static float calculate_ssd(float avg, list_t lst)
-{
-    struct sensor_data *item;
-    float ssd = 0.0;
-    for (item = list_head(lst); item != NULL; item = list_item_next(item))
-    {
-        float diff = item->value - avg;
-        ssd += diff * diff;
-    }
-    return ssd;
-}
-
+// Math helper functions for approximation
 static float sqrt_approx(float ssd)
 {
     float error = 0.001; // Error tolerance for Babylonian method
@@ -124,6 +100,32 @@ static float sqrt_approx(float ssd)
         }
     }
     return x;
+}
+
+// Math functions from basic features
+static float calculate_avg(list_t lst)
+{
+    struct sensor_data *item;
+    float sum = 0.0;
+    int count = 0;
+    for (item = list_head(lst); item != NULL; item = list_item_next(item))
+    {
+        sum += item->value;
+        count++;
+    }
+    return (count == 0) ? 0.0 : sum / count;
+}
+
+static float calculate_ssd(float avg, list_t lst)
+{
+    struct sensor_data *item;
+    float ssd = 0.0;
+    for (item = list_head(lst); item != NULL; item = list_item_next(item))
+    {
+        float diff = item->value - avg;
+        ssd += diff * diff;
+    }
+    return ssd;
 }
 
 static float calculate_std(list_t lst)
@@ -179,14 +181,14 @@ static float calculate_correlation(list_t light_list, list_t temp_list)
     return numerator / (std_x * std_y);
 }
 
-// TODO: Implement SFFT
+// STFT Implementation
 typedef struct
 {
     float real;
     float imag;
 } complex_t;
 
-// helper functions
+// helper functions for linked list
 float list_get(list_t lst, int index)
 {
     struct sensor_data *element = (struct sensor_data *)list_head(lst);
@@ -207,7 +209,7 @@ float list_get(list_t lst, int index)
 // define memory pool
 MEMB(chunk_pool, float, 4);
 
-// math helper functions
+// math helper functions for advanced features
 float sine_approx(float x)
 {
     float term = x; // First term
