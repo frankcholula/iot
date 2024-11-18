@@ -135,14 +135,27 @@ static float calculate_std(list_t lst)
 
 static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
 {
+    float max_light = 0.0f, max_temp = 0.0f;
+    struct sensor_data *item;
+    
+    for (item = list_head(light_list); item != NULL; item = list_item_next(item)) {
+        if (item->value > max_light) max_light = item->value;
+    }
+    for (item = list_head(temp_list); item != NULL; item = list_item_next(item)) {
+        if (item->value > max_temp) max_temp = item->value;
+    }
+
     struct sensor_data *light_item = list_head(light_list);
     struct sensor_data *temp_item = list_head(temp_list);
-    float dist = 0.0f; // Use float with f suffix
+    float dist = 0.0f;
 
-    while (light_item != NULL && temp_item != NULL)
-    {
-        float diff = light_item->value - temp_item->value;
-        dist += (diff < 0) ? -diff : diff; // Inline abs for float
+    while (light_item != NULL && temp_item != NULL) {
+        // Normalize values to 0-1 range before calculating difference
+        float norm_light = light_item->value / max_light;
+        float norm_temp = temp_item->value / max_temp;
+        float diff = norm_light - norm_temp;
+        dist += (diff < 0) ? -diff : diff;
+        
         light_item = list_item_next(light_item);
         temp_item = list_item_next(temp_item);
     }
