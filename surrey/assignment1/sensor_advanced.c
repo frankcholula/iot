@@ -21,19 +21,23 @@ static void print_float(float number)
 
 float read_light_sensor(void)
 {
-    int lightData = light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC);
-    float V_sensor = 1.5 * lightData / 4096;
-    float I = V_sensor / 100000;
-    float light = 0.625 * 1e6 * I * 1000;
-    return light;
+    float V_sensor = 1.5 * light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC) / 4096;
+    // ^ ADC-12 uses 1.5V_REF
+    float I = V_sensor / 100000;             // xm1000 uses 100kohm resistor
+    float light_lx = 0.625 * 1e6 * I * 1000; // convert from current to light intensity
+    return light_lx;
 }
 
 float get_temp_sensor(void)
 {
-    float tempData = sht11_sensor.value(SHT11_SENSOR_TEMP_SKYSIM); // For Cooja Sim
-    float d1 = -39.6;
-    float d2 = 0.04; // Adjust as per sensor calibration
-    float temp = tempData * d2 + d1;
+    // For simulation sky mote
+    int tempADC = sht11_sensor.value(SHT11_SENSOR_TEMP_SKYSIM);
+    float temp = 0.04 * tempADC - 39.6; // skymote uses 12-bit ADC, or 0.04 resolution
+
+    // For xm1000 mote
+    // int   tempADC = sht11_sensor.value(SHT11_SENSOR_TEMP);
+    // float temp = 0.01*tempADC-39.6; // xm1000 uses 14-bit ADC, or 0.01 resolution
+
     return temp;
 }
 
