@@ -5,11 +5,10 @@
 #include "lib/list.h"
 #include "lib/memb.h"
 #include <stdio.h> /* For printf() */
-#include <math.h>
 
-#define LN2 0.69314718056
+#define PI 3.14159f
+#define LN2 0.69315f
 #define BUFFER_SIZE 12
-#define PI 3.141592653589793
 
 /* Helper functions */
 static void print_float(float number)
@@ -134,14 +133,16 @@ static float calculate_std(list_t lst)
     return sqrt_approx(ssd);
 }
 
-static float calculate_manhattan_dist(list_t light_list, list_t temp_list) {
+static float calculate_manhattan_dist(list_t light_list, list_t temp_list)
+{
     struct sensor_data *light_item = list_head(light_list);
     struct sensor_data *temp_item = list_head(temp_list);
-    float dist = 0.0f;  // Use float with f suffix
+    float dist = 0.0f; // Use float with f suffix
 
-    while (light_item != NULL && temp_item != NULL) {
+    while (light_item != NULL && temp_item != NULL)
+    {
         float diff = light_item->value - temp_item->value;
-        dist += (diff < 0) ? -diff : diff;  // Inline abs for float
+        dist += (diff < 0) ? -diff : diff; // Inline abs for float
         light_item = list_item_next(light_item);
         temp_item = list_item_next(temp_item);
     }
@@ -206,6 +207,7 @@ float list_get(list_t lst, int index)
 // define memory pool
 MEMB(chunk_pool, float, 4);
 
+// math helper functions
 float sine_approx(float x)
 {
     float term = x; // First term
@@ -239,6 +241,28 @@ float cosine_approx(float x)
     }
     return result;
 }
+
+float log_approx(float x)
+{
+    if (x <= 0.0f)
+        return 0.0f; // Guard against invalid input
+
+    float result = 0.0f;
+    float term = (x - 1.0f) / (x + 1.0f);
+    float term_squared = term * term;
+    float numerator = term;
+    int n;
+
+    // Use first 4 terms of series expansion
+    for (n = 1; n <= 7; n += 2)
+    {
+        result += numerator / n;
+        numerator *= term_squared;
+    }
+
+    return 2.0f * result;
+}
+
 void fft(complex_t *data, int fft_size)
 {
     int i, j, len;
@@ -442,7 +466,7 @@ static float compute_spectral_entropy(list_t lst, int chunk_size, int hop_size)
             if (avg_power_spectrum[i] > 0.0f)
             {
                 pdf[i] = avg_power_spectrum[i] / total_power;
-                entropy -= pdf[i] * logf(pdf[i]);
+                entropy -= pdf[i] * log_approx(pdf[i]);
             }
         }
     }
