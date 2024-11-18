@@ -58,7 +58,6 @@ static void add_sensor_data(float light)
     list_add(sensor_list, new_data);
 }
 
-/* Calculate average */
 static float calculate_avg()
 {
     struct sensor_data *item;
@@ -121,48 +120,48 @@ static float calculate_std()
 
 void perform_sax(char sax_output[SAX_FRAGMENTS])
 {
-    struct sensor_data *item;
-    float fragment_means[SAX_FRAGMENTS] = {0};
-    int fragment_size = BUFFER_SIZE / SAX_FRAGMENTS;
-    int i = 0, count = 0;
-
-    // Compute fragment means
-    for (item = list_head(sensor_list); item != NULL; item = list_item_next(item))
-    {
-        fragment_means[i] += item->light;
-        count++;
-        if (count == fragment_size)
-        {
-            fragment_means[i] /= fragment_size;
-            i++;
-            count = 0;
-        }
-    }
-
-    // Normalize fragment means
     float avg = calculate_avg();
     float std = calculate_std();
+    struct sensor_data *item;
+    int i, j;
+    
+    // normalize the time series
+    float normalized_data[BUFFER_SIZE];
+    int idx = 0;
+    for (item = list_head(sensor_list); item != NULL; item = list_item_next(item))
+    {
+        normalized_data[idx] = (item->light - avg) / std;
+        idx++;
+    }
+    
+    // perform PAA
+    float fragment_means[SAX_FRAGMENTS] = {0};
+    int fragment_size = BUFFER_SIZE / SAX_FRAGMENTS;
+    
+    for (i = 0; i < SAX_FRAGMENTS; i++) {
+        float sum = 0;
+        for (j = 0; j < fragment_size; j++) {
+            sum += normalized_data[i * fragment_size + j];
+        }
+        fragment_means[i] = sum / fragment_size;
+    }
+    
+    // convert symbols with gaussain breakpoints
     char alphabet[4] = {'A', 'B', 'C', 'D'};
     float breakpoints[3] = {-0.67, 0, 0.67};
-
-    // Assign SAX symbols
-    for (i = 0; i < SAX_FRAGMENTS; i++)
-    {
-        float z = (fragment_means[i] - avg) / std;
-        if (z <= breakpoints[0])
-        {
+    
+    for (i = 0; i < SAX_FRAGMENTS; i++) {
+        float z = fragment_means[i];
+        if (z <= breakpoints[0]) {
             sax_output[i] = alphabet[0];
         }
-        else if (z <= breakpoints[1])
-        {
+        else if (z <= breakpoints[1]) {
             sax_output[i] = alphabet[1];
         }
-        else if (z <= breakpoints[2])
-        {
+        else if (z <= breakpoints[2]) {
             sax_output[i] = alphabet[2];
         }
-        else
-        {
+        else {
             sax_output[i] = alphabet[3];
         }
     }
