@@ -5,10 +5,8 @@
 #include <stdio.h> /* For printf() */
 
 #define BUFFER_SIZE 12
-// Thresholds for activity levels
 #define LOW_ACTIVITY_THRESHOLD 1000
 #define HIGH_ACTIVITY_THRESHOLD 5000
-// Number of SAX fragments
 #define SAX_FRAGMENTS 4
 
 /* Helper functions */
@@ -73,7 +71,6 @@ static float calculate_avg()
     return (count == 0) ? 0.0 : sum / count;
 }
 
-/* Calculate sum of squared differences */
 static float calculate_ssd(float avg)
 {
     struct sensor_data *item;
@@ -121,7 +118,6 @@ static float calculate_std()
     return sqrt_approx(ssd);
 }
 
-/* SAX Transformation */
 void perform_sax(char sax_output[SAX_FRAGMENTS])
 {
     struct sensor_data *item;
@@ -171,7 +167,6 @@ void perform_sax(char sax_output[SAX_FRAGMENTS])
     }
 }
 
-/* Aggregation and Reporting */
 static void aggregate_and_report()
 {
     struct sensor_data *item = list_head(sensor_list);
