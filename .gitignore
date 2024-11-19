@@ -54,3 +54,4 @@ tests/18-coap-lwm2m/leshan-server-demo*.jar
 # Notion exports
 *.zip
 notion_exports/
+iot_screenshots/
