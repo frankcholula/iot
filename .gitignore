@@ -50,3 +50,7 @@ tests/18-coap-lwm2m/leshan-server-demo*.jar
 
 # VS code files
 *.vscode
+
+# Notion exports
+*.zip
+notion_exports/
