@@ -102,11 +102,9 @@ float calculate_pcc(float *arrayX, float*arrayY, float averageX, float averageY)
   int i;
   for (i=0; i<15; i++)
   {
-    sumX += arrayX[i] - averageX;
-    sumY += arrayY[i] - averageY;
-    sumXY += sumX * sumY;
-    sumX2 += sumX * sumX;
-    sumY2 += sumY * sumY;
+    sumXY = sumXY + (arrayX[i] - averageX) * (arrayY[i] - averageY);
+    sumX2 = sumX2 + (arrayX[i] - averageX) * (arrayX[i] - averageX);
+    sumY2 = sumY2 + (arrayY[i] - averageY) * (arrayY[i] - averageY);
   }
   float pcc = (sumXY)/ sqrt_approx(sumX2 * sumY2);
   return pcc;
