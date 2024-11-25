@@ -163,7 +163,7 @@ PROCESS_THREAD(sensor_reading_process, ev, data)
   for (i=0; i<15; i++)
     averageE = averageE + EMA[i];
   averageE = averageE / 15;
-  printf("Average for E = %d.%d\n", d1(average), d2(average));
+  // printf("Average for E = %d.%d\n", d1(average), d2(average));
   // determine Pearson Correlation Coefficient (implemente your code here)
   float pearsonCC = calculate_pcc(temp15, EMA, average, averageE);
 
