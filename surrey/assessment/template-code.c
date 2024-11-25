@@ -2,7 +2,7 @@
 #include <stdio.h> /* For printf() */
 #include <random.h>  /* For random_rand() */
 #include <string.h> /* For memcpy() */
-#define URN  6999999  // specify your URN here
+#define URN  6891988  // specify your URN here
 
 int d1(float f) // Integer part
 {
